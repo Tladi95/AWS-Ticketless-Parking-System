@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
@@ -73,3 +74,6 @@ export default defineConfig([
 ])
 
 ```
+=======
+# AWS-Ticketless-Parking-System
+>>>>>>> 79288f5938c7c7a36a2aa699e6d92ce7176c5c05

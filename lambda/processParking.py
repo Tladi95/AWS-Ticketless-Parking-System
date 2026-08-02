@@ -7,7 +7,18 @@ import os
 s3 = boto3.client('s3')
 rekognition = boto3.client('rekognition', region_name='eu-west-1')
 
-SA_PLATE = re.compile(r'^[A-Z]{2,3}\s?\d{2,3}\s?[A-Z]{2}$', re.IGNORECASE)
+SA_PLATE = re.compile(
+    r'^(?:'
+    r'[A-Z]{2,3}\s?\d{2,6}\s?(?:GP|MP|NW|NC|FS|EC|KZN|L)|'  # provincial suffix
+    r'CA\s?\d{3,6}|'                                            # Cape Town
+    r'CY\s?\d{3,6}|'                                            # Bellville
+    r'CL\s?\d{3,6}|'                                            # Stellenbosch
+    r'CJ\s?\d{3,6}|'                                            # Paarl
+    r'ND\s?\d{3,6}|'                                            # Durban
+    r'P\s?\d{3,6}'                                              # Port Elizabeth/Gqeberha
+    r')$',
+    re.IGNORECASE
+)
 
 def get_db():
     return pg8000.connect(
@@ -61,8 +72,8 @@ def lambda_handler(event, context):
         session_id, entry_time = row
         from datetime import datetime, timezone
         exit_time = datetime.now(timezone.utc)
-        ms = (exit_time - entry_time).total_seconds()
-        fee = max(1, int(ms / 3600)) * 10
+        seconds = (exit_time - entry_time).total_seconds()
+        fee = max(1, int(seconds / 3600)) * 10
         cur.execute(
             "UPDATE parking_sessions SET exit_timestamp = %s, calculated_fee = %s, session_status = 'COMPLETED' WHERE session_id = %s",
             (exit_time, fee, session_id)
