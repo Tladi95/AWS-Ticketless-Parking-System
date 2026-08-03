@@ -247,9 +247,9 @@ body {
 .session:last-child { margin-bottom: 0; }
 
 .thumb {
-  width: 96px;
-  height: 64px;
-  object-fit: cover;
+  width: 140px;
+  height: 90px;
+  object-fit: contain;
   border-radius: 6px;
   flex-shrink: 0;
   background: var(--border);

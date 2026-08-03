@@ -63,23 +63,19 @@ export default function App() {
   return (
     <div className="container">
       <div className="header">
-        <div className="header-badge">Live System</div>
         <h1>Ticketless Parking System</h1>
       </div>
 
       <div className="stats-bar">
         <div className="stat">
-          <span className="stat-icon">🚗</span>
           <span className="stat-value">{active.length}</span>
           <span className="stat-label">Active</span>
         </div>
         <div className="stat">
-          <span className="stat-icon">✅</span>
           <span className="stat-value">{completed.length}</span>
           <span className="stat-label">Completed</span>
         </div>
         <div className="stat">
-          <span className="stat-icon">💰</span>
           <span className="stat-value">R{totalRevenue}</span>
           <span className="stat-label">Revenue</span>
         </div>
@@ -87,21 +83,22 @@ export default function App() {
 
       <div className="card">
         <div className="mode-toggle">
-          <button className={`mode-btn ${mode === "entry" ? "active-entry" : ""}`} onClick={() => setMode("entry")}>
-            🟢 Entry
-          </button>
-          <button className={`mode-btn ${mode === "exit" ? "active-exit" : ""}`} onClick={() => setMode("exit")}>
-            🔴 Exit
-          </button>
+          <button className={`mode-btn ${mode === "entry" ? "active-entry" : ""}`} onClick={() => setMode("entry")}>Entry</button>
+          <button className={`mode-btn ${mode === "exit" ? "active-exit" : ""}`} onClick={() => setMode("exit")}>Exit</button>
         </div>
 
-        {errorMsg && <p className="error-msg">⚠ {errorMsg}</p>}
+        {errorMsg && <p className="error-msg">{errorMsg}</p>}
 
         <label className="upload-label">
           <div className={`upload-zone ${uploadStatus}`}>
-            <span className="upload-icon">{uploadStatus === "uploading" ? "⏳" : uploadStatus === "error" ? "❌" : "📷"}</span>
-            <p>{uploadStatus === "uploading" ? "Processing image..." : uploadStatus === "error" ? "Upload failed — try again" : `Capture ${mode === "entry" ? "Entry" : "Exit"} Plate`}</p>
-            <span>{uploadStatus === "idle" ? "Click to upload or drag & drop" : ""}</span>
+            <p>
+              {uploadStatus === "uploading"
+                ? "Uploading..."
+                : uploadStatus === "error"
+                ? "Upload failed — try again"
+                : `Upload ${mode === "entry" ? "Entry" : "Exit"} Image`}
+            </p>
+            <span>{uploadStatus === "idle" ? "Click to select a file" : ""}</span>
             {uploadStatus === "uploading" && <div className="upload-progress"><div className="upload-progress-bar" /></div>}
           </div>
           <input type="file" accept="image/*" onChange={handleUpload} disabled={uploadStatus === "uploading"} />
@@ -114,7 +111,7 @@ export default function App() {
           <span className="card-count">{active.length}</span>
         </div>
         {active.length === 0 ? (
-          <div className="empty"><span className="empty-icon">🅿️</span>No active sessions</div>
+          <div className="empty">No active sessions</div>
         ) : (
           active.map((s) => (
             <div key={s.id} className="session">
@@ -122,7 +119,7 @@ export default function App() {
               <div className="session-info">
                 <span className="badge badge-active">Active</span>
                 <p className="session-plate">{s.plateNumber}</p>
-                <p className="meta">Entry · {new Date(s.entryTime).toLocaleString()}</p>
+                <p className="meta">Entry — {new Date(s.entryTime).toLocaleString()}</p>
               </div>
             </div>
           ))
@@ -135,7 +132,7 @@ export default function App() {
           <span className="card-count">{completed.length}</span>
         </div>
         {completed.length === 0 ? (
-          <div className="empty"><span className="empty-icon">🧾</span>No receipts yet</div>
+          <div className="empty">No receipts yet</div>
         ) : (
           completed.map((s) => (
             <div key={s.id} className="receipt-item">
@@ -155,7 +152,7 @@ export default function App() {
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Parking Receipt</h2>
-              <button className="modal-close" onClick={() => setSelectedReceipt(null)}>✕</button>
+              <button className="modal-close" onClick={() => setSelectedReceipt(null)}>x</button>
             </div>
             <img src={selectedReceipt.image} alt={selectedReceipt.plateNumber} className="receipt-image" />
             <div className="receipt-details">
@@ -164,7 +161,7 @@ export default function App() {
               <p><span>Exit Time</span><strong>{new Date(selectedReceipt.exitTime!).toLocaleString()}</strong></p>
               <p className="receipt-total"><span>Total Fee</span><strong>R{selectedReceipt.amount?.toFixed(2)}</strong></p>
             </div>
-            <button className="button" style={{ width: "100%" }} onClick={() => setSelectedReceipt(null)}>Close Receipt</button>
+            <button className="button" style={{ width: "100%" }} onClick={() => setSelectedReceipt(null)}>Close</button>
           </div>
         </div>
       )}

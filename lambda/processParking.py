@@ -7,18 +7,93 @@ import os
 s3 = boto3.client('s3')
 rekognition = boto3.client('rekognition', region_name='eu-west-1')
 
-SA_PLATE = re.compile(
-    r'^(?:'
-    r'[A-Z]{2,3}\s?\d{2,6}\s?(?:GP|MP|NW|NC|FS|EC|KZN|L)|'  # provincial suffix
-    r'CA\s?\d{3,6}|'                                            # Cape Town
-    r'CY\s?\d{3,6}|'                                            # Bellville
-    r'CL\s?\d{3,6}|'                                            # Stellenbosch
-    r'CJ\s?\d{3,6}|'                                            # Paarl
-    r'ND\s?\d{3,6}|'                                            # Durban
-    r'P\s?\d{3,6}'                                              # Port Elizabeth/Gqeberha
-    r')$',
-    re.IGNORECASE
-)
+# --------------------------------------------------
+# South African Province Codes
+# --------------------------------------------------
+
+PROVINCES = ("GP", "ZN", "EC", "MP", "L", "NC", "NW", "FS", "WP")
+PROVINCE_REGEX = "(" + "|".join(PROVINCES) + ")"
+
+# --------------------------------------------------
+# South African Licence Plate Patterns
+# --------------------------------------------------
+
+SA_PLATE_PATTERNS = {
+    "Gauteng / KwaZulu-Natal": rf"^[A-Z]{{2}}\d{{2}}[A-Z]{{2}}{PROVINCE_REGEX}$",
+    "Standard Provincial":     rf"^[A-Z]{{3}}\d{{3}}{PROVINCE_REGEX}$",
+    "Western Cape":            r"^C[A-Z]{1,2}\d{3,6}$",
+    "Personalised":            rf"^[A-Z0-9]{{1,7}}{PROVINCE_REGEX}$",
+}
+
+# --------------------------------------------------
+# Pattern Matching
+# --------------------------------------------------
+
+def match_plate(text):
+    for pattern_name, pattern in SA_PLATE_PATTERNS.items():
+        if re.match(pattern, text, re.IGNORECASE):
+            return pattern_name
+    return None
+
+# --------------------------------------------------
+# Detect Licence Plate
+# --------------------------------------------------
+
+def detect_license_plate(image_bytes):
+    response = rekognition.detect_text(Image={'Bytes': image_bytes})
+
+    detected_lines = []
+
+    for detection in response["TextDetections"]:
+        if detection["Type"] != "LINE":
+            continue
+        confidence = detection["Confidence"]
+        if confidence < 80:
+            continue
+        text = detection["DetectedText"]
+        cleaned = re.sub(r"[^A-Z0-9]", "", text.upper())
+        if cleaned:
+            detected_lines.append({"text": cleaned, "confidence": confidence})
+
+    if not detected_lines:
+        return None
+
+    # 1. Single line
+    for line in detected_lines:
+        pattern = match_plate(line["text"])
+        if pattern:
+            return {"plate": line["text"], "confidence": round(line["confidence"], 2), "pattern": pattern}
+
+    # 2. Two-line combined
+    for i in range(len(detected_lines) - 1):
+        combined = detected_lines[i]["text"] + detected_lines[i + 1]["text"]
+        pattern = match_plate(combined)
+        if pattern:
+            confidence = min(detected_lines[i]["confidence"], detected_lines[i + 1]["confidence"])
+            return {"plate": combined, "confidence": round(confidence, 2), "pattern": pattern}
+
+    # 3. Three-line combined
+    for i in range(len(detected_lines) - 2):
+        combined = detected_lines[i]["text"] + detected_lines[i + 1]["text"] + detected_lines[i + 2]["text"]
+        pattern = match_plate(combined)
+        if pattern:
+            confidence = min(detected_lines[i]["confidence"], detected_lines[i + 1]["confidence"], detected_lines[i + 2]["confidence"])
+            return {"plate": combined, "confidence": round(confidence, 2), "pattern": pattern}
+
+    # 4. Smart fallback
+    detected_lines.sort(
+        key=lambda item: (any(c.isdigit() for c in item["text"]), len(item["text"]), item["confidence"]),
+        reverse=True
+    )
+    best = detected_lines[0]
+    if len(best["text"]) >= 4:
+        return {"plate": best["text"], "confidence": round(best["confidence"], 2), "pattern": "Fallback"}
+
+    return None
+
+# --------------------------------------------------
+# DB
+# --------------------------------------------------
 
 def get_db():
     return pg8000.connect(
@@ -29,25 +104,25 @@ def get_db():
         ssl_context=True
     )
 
+# --------------------------------------------------
+# Handler
+# --------------------------------------------------
+
 def lambda_handler(event, context):
     bucket = event['Records'][0]['s3']['bucket']['name']
     key = urllib.parse.unquote_plus(event['Records'][0]['s3']['object']['key'])
     mode = key.split('/')[1]  # uploads/entry/... or uploads/exit/...
 
     image_bytes = s3.get_object(Bucket=bucket, Key=key)['Body'].read()
-    response = rekognition.detect_text(Image={'Bytes': image_bytes})
 
-    plate = next(
-        (t['DetectedText'] for t in response['TextDetections']
-         if t['Type'] == 'LINE' and SA_PLATE.match(t['DetectedText'])),
-        None
-    )
+    result = detect_license_plate(image_bytes)
 
-    if not plate:
+    if not result:
         print("No valid SA plate detected")
         return
 
-    print(f"Detected plate: {plate}, mode: {mode}")
+    plate = result["plate"]
+    print(f"Detected plate: {plate} | pattern: {result['pattern']} | confidence: {result['confidence']}% | mode: {mode}")
 
     image_url = f"https://{bucket}.s3.af-south-1.amazonaws.com/{key}"
     conn = get_db()
